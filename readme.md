@@ -1,3 +1,3 @@
 # Go Games
 
-Collection of games writtin in go 
+Collection of games writtin in go
