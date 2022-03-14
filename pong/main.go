@@ -8,6 +8,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
+const ballSymbol = 0x25CF
 const paddleSymbol = 0x2588
 const paddleHeight = 4
 
@@ -18,19 +19,32 @@ var directionMap = map[string]string{
 	"Rune[s]": "down",
 }
 
-type Paddle struct {
+type GameObject struct {
 	row, col, width, height int
+	velRow, velCow          int
+	symbol                  rune
 }
 
 var screen tcell.Screen
-var paddle1 *Paddle
-var paddle2 *Paddle
+var paddle1 *GameObject
+var paddle2 *GameObject
+var ball *GameObject
 
-func draw(row, col, width, height int) {
-	for r := 0; r < height; r++ {
-		for c := 0; c < width; c++ {
-			screen.SetContent(col+c, row+r, paddleSymbol, nil, tcell.StyleDefault)
-		}
+var initialBallVelocityRow = 1
+var initialBallVelocityCol = 1
+
+var gameObjects []*GameObject
+
+func main() {
+	initScreen()
+	initGameState()
+	inputChanel := initUserINput()
+
+	for {
+		handleUserInput(readUserInput(inputChanel))
+		updateState()
+		drawState( /* 3, 3, key */ )
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
@@ -38,25 +52,54 @@ func initGameState() {
 	width, height := screen.Size()
 	paddleStart := height/2 - paddleHeight/2
 
-	paddle1 = &Paddle{
+	paddle1 = &GameObject{
 		row:    paddleStart,
 		col:    0,
 		width:  1,
 		height: paddleHeight,
+		symbol: paddleSymbol,
+		velRow: 0,
+		velCow: 0,
 	}
 
-	paddle2 = &Paddle{
+	paddle2 = &GameObject{
 		row:    paddleStart,
 		col:    width - 1,
 		width:  1,
 		height: paddleHeight,
+		symbol: paddleSymbol,
+		velRow: 0,
+		velCow: 0,
+	}
+
+	ball = &GameObject{
+		row:    height / 2,
+		col:    width / 2,
+		width:  1,
+		height: 1,
+		symbol: ballSymbol,
+		velRow: initialBallVelocityRow,
+		velCow: initialBallVelocityCol,
+	}
+
+	gameObjects = []*GameObject{
+		paddle1, paddle2, ball,
+	}
+}
+
+func draw(gameObject *GameObject) {
+	for r := 0; r < gameObject.height; r++ {
+		for c := 0; c < gameObject.width; c++ {
+			screen.SetContent(gameObject.col+c, gameObject.row+r, gameObject.symbol, nil, tcell.StyleDefault)
+		}
 	}
 }
 
 func drawState( /* col, row int, key string */ ) {
 	screen.Clear()
-	draw(paddle1.row, paddle1.col, paddle1.width, paddle1.height)
-	draw(paddle2.row, paddle2.col, paddle2.width, paddle2.height)
+	for _, object := range gameObjects {
+		draw(object)
+	}
 
 	/* for _, c := range key {
 		screen.SetContent(col, row, c, nil, tcell.StyleDefault)
@@ -66,30 +109,9 @@ func drawState( /* col, row int, key string */ ) {
 	screen.Show()
 }
 
-func main() {
-	initScreen()
-	initGameState()
-	inputChanel := initUserINput()
-
-	for {
-		drawState( /* 3, 3, key */ )
-		time.Sleep(10 * time.Millisecond)
-
-		key := readUserInput(inputChanel)
-		switch key {
-		case "Rune[q]":
-			screen.Fini()
-			os.Exit(0)
-		case "Up":
-			movePaddle(paddle2, directionMap[key])
-		case "Down":
-			movePaddle(paddle2, directionMap[key])
-		case "Rune[w]":
-			movePaddle(paddle1, directionMap[key])
-		case "Rune[s]":
-			movePaddle(paddle1, directionMap[key])
-		}
-	}
+func updateState() {
+	gameObjects[2].row += gameObjects[2].velRow
+	gameObjects[2].col += gameObjects[2].velCow
 }
 
 func initScreen() {
@@ -133,13 +155,28 @@ func readUserInput(inputChannel chan string) string {
 	case key = <-inputChannel:
 	default:
 		key = ""
-
 	}
 
 	return key
 }
 
-func checkIfAtBoundary(paddle *Paddle) (bool, bool) {
+func handleUserInput(key string) {
+	switch key {
+	case "Rune[q]":
+		screen.Fini()
+		os.Exit(0)
+	case "Up":
+		movePaddle(paddle2, directionMap[key])
+	case "Down":
+		movePaddle(paddle2, directionMap[key])
+	case "Rune[w]":
+		movePaddle(paddle1, directionMap[key])
+	case "Rune[s]":
+		movePaddle(paddle1, directionMap[key])
+	}
+}
+
+func checkIfAtBoundary(paddle *GameObject) (bool, bool) {
 	var isAtTopBoundary, isAtBottomBoundary bool
 	_, height := screen.Size()
 	if paddle.row == 0 {
@@ -151,7 +188,7 @@ func checkIfAtBoundary(paddle *Paddle) (bool, bool) {
 	return isAtTopBoundary, isAtBottomBoundary
 }
 
-func movePaddle(paddle *Paddle, direction string) {
+func movePaddle(paddle *GameObject, direction string) {
 	isAtTopBoundary, isAtBottomBoundary := checkIfAtBoundary(paddle)
 
 	if !isAtTopBoundary && direction == "up" {
