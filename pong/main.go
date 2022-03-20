@@ -21,7 +21,7 @@ var directionMap = map[string]string{
 
 type GameObject struct {
 	row, col, width, height int
-	velRow, velCow          int
+	velRow, velCol          int
 	symbol                  rune
 }
 
@@ -30,8 +30,8 @@ var paddle1 *GameObject
 var paddle2 *GameObject
 var ball *GameObject
 
-var initialBallVelocityRow = 1
-var initialBallVelocityCol = 1
+var initialBallVelocityRow = -1
+var initialBallVelocityCol = -2
 
 var gameObjects []*GameObject
 
@@ -44,7 +44,7 @@ func main() {
 		handleUserInput(readUserInput(inputChanel))
 		updateState()
 		drawState( /* 3, 3, key */ )
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(30 * time.Millisecond)
 	}
 }
 
@@ -59,7 +59,7 @@ func initGameState() {
 		height: paddleHeight,
 		symbol: paddleSymbol,
 		velRow: 0,
-		velCow: 0,
+		velCol: 0,
 	}
 
 	paddle2 = &GameObject{
@@ -69,7 +69,7 @@ func initGameState() {
 		height: paddleHeight,
 		symbol: paddleSymbol,
 		velRow: 0,
-		velCow: 0,
+		velCol: 0,
 	}
 
 	ball = &GameObject{
@@ -79,7 +79,7 @@ func initGameState() {
 		height: 1,
 		symbol: ballSymbol,
 		velRow: initialBallVelocityRow,
-		velCow: initialBallVelocityCol,
+		velCol: initialBallVelocityCol,
 	}
 
 	gameObjects = []*GameObject{
@@ -101,17 +101,25 @@ func drawState( /* col, row int, key string */ ) {
 		draw(object)
 	}
 
-	/* for _, c := range key {
-		screen.SetContent(col, row, c, nil, tcell.StyleDefault)
-		col++
-	} */
-
 	screen.Show()
 }
 
 func updateState() {
-	gameObjects[2].row += gameObjects[2].velRow
-	gameObjects[2].col += gameObjects[2].velCow
+	width, _ := screen.Size()
+	ball.row += ball.velRow
+	ball.col += ball.velCol
+
+	if checkIfBallAtBoundary(ball) {
+		ball.velRow *= -1
+	} else if checkIfTouchingPaddle(ball, paddle1) || checkIfTouchingPaddle(ball, paddle2) {
+		ball.velCol *= -1
+	}
+
+	if ball.col < 0 || ball.col > width {
+		fmt.Println("FINISHED")
+		screen.Fini()
+		os.Exit(0)
+	}
 }
 
 func initScreen() {
@@ -186,6 +194,22 @@ func checkIfAtBoundary(paddle *GameObject) (bool, bool) {
 	}
 
 	return isAtTopBoundary, isAtBottomBoundary
+}
+
+func checkIfBallAtBoundary(obj *GameObject) bool {
+	_, screenHeight := screen.Size()
+	return obj.row+obj.velRow < 0 || obj.row+obj.velRow >= screenHeight
+}
+
+func checkIfTouchingPaddle(ball *GameObject, paddle *GameObject) bool {
+	var collidesOnColumn bool
+	if ball.col < paddle.col {
+		collidesOnColumn = ball.col+ball.velCol >= paddle.col
+	} else {
+		collidesOnColumn = ball.col+ball.velCol <= paddle.col
+	}
+
+	return collidesOnColumn && ball.row >= paddle.row && ball.row < paddle.row+paddle.height
 }
 
 func movePaddle(paddle *GameObject, direction string) {
